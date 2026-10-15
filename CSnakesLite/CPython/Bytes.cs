@@ -1,0 +1,44 @@
+using CSnakesLite.Python;
+using System;
+using System.Runtime.InteropServices;
+
+namespace CSnakesLite.CPython;
+internal unsafe partial class CPythonAPI
+{
+    private static nint PyBytesType = IntPtr.Zero;
+
+    public static bool IsBytes(PyObject p)
+    {
+        return PyObject_IsInstance(p, PyBytesType);
+    }
+
+    internal static nint PyBytes_FromByteSpan(ReadOnlySpan<byte> bytes)
+    {
+        fixed (byte* b = bytes)
+        {
+            return PyBytes_FromStringAndSize(b, bytes.Length);
+        }
+    }
+
+    internal static byte[] PyBytes_AsByteArray(PyObject bytes)
+    {
+        byte* ptr = PyBytes_AsString(bytes);
+        if (ptr is null)
+        {
+            throw PyObject.ThrowPythonExceptionAsClrException();
+        }
+        nint size = PyBytes_Size(bytes);
+        byte[] byteArray = new byte[size];
+        Marshal.Copy((IntPtr)ptr, byteArray, 0, (int)size);
+        return byteArray;
+    }
+
+    [LibraryImport(PythonLibraryName)]
+    private static partial nint PyBytes_FromStringAndSize(byte* v, nint len);
+
+    [LibraryImport(PythonLibraryName)]
+    private static partial byte* PyBytes_AsString(PyObject ob);
+
+    [LibraryImport(PythonLibraryName)]
+    private static partial nint PyBytes_Size(PyObject ob);
+}

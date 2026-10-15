@@ -1,0 +1,42 @@
+using CSnakesLite.CPython;
+using CSnakesLite.Python;
+using System;
+using System.Collections;
+using System.Diagnostics.CodeAnalysis;
+
+namespace CSnakesLite;
+internal partial class PyObjectTypeConverter
+{
+    [RequiresDynamicCode(DynamicCodeMessages.CallsMakeGenericType)]
+    private static object ConvertToDictionary(PyObject pyObject, Type destinationType, bool useMappingProtocol = false)
+    {
+        Type keyType = destinationType.GetGenericArguments()[0];
+        Type valueType = destinationType.GetGenericArguments()[1];
+
+        if (!knownDynamicTypes.TryGetValue(destinationType, out DynamicTypeInfo? typeInfo))
+        {
+            Type dictType = typeof(PyDictionary<,>).MakeGenericType(keyType, valueType);
+
+            typeInfo = new(dictType.GetConstructor([typeof(PyObject)])!);
+            knownDynamicTypes[destinationType] = typeInfo;
+        }
+
+        return typeInfo.ReturnTypeConstructor.Invoke([pyObject.Clone()]);
+    }
+
+    internal static PyObject ConvertFromDictionary(IDictionary dictionary)
+    {
+        PyObject pyDict = PyObject.Create(CPythonAPI.PyDict_New());
+
+        foreach (DictionaryEntry kvp in dictionary)
+        {
+            int result = CPythonAPI.PyDict_SetItem(pyDict, PyObject.From(kvp.Key), PyObject.From(kvp.Value));
+            if (result == -1)
+            {
+                throw PyObject.ThrowPythonExceptionAsClrException();
+            }
+        }
+
+        return pyDict;
+    }
+}
